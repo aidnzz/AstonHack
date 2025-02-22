@@ -4,7 +4,7 @@
 	let { children } = $props();
 </script>
 <svelte:head>
-	<title>CFMA</title>
+	<title>Community Financial Management App</title>
 </svelte:head>
 <Navbar/>
 {@render children()}

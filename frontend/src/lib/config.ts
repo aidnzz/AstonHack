@@ -1,5 +1,5 @@
 export const siteConfig = {
-    name: "CFMA",
+    name: "Community Financial Management App",
 }
 
 export type SiteConfig = typeof siteConfig;
