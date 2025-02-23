@@ -3,6 +3,10 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import datetime
+from models import db, ChatSession, ChatMessage  
+
+
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -12,8 +16,13 @@ app.config['SECRET_KEY'] = '385-342-391'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///community.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Initialize SQLAlchemy
-db = SQLAlchemy(app)
+db.init_app(app)
+
+
+from cba import CBAA
+from models import ChatSession, ChatMessage
+
+chatbot = CBAA()
 
 # Database Models
 class User(db.Model):
@@ -26,21 +35,21 @@ class Project(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(20), default='proposed')  # proposed, active, completed
+    status = db.Column(db.String(20), default='proposed')
     budget = db.Column(db.Float, nullable=False)
-    created_by = db.Column(db.String, db.ForeignKey('user.username'), nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
 class Contribution(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_username = db.Column(db.String, db.ForeignKey('user.username'), nullable=False)
+    user_username = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     project_title = db.Column(db.String, db.ForeignKey('project.title'), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     date = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
 class Vote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_username = db.Column(db.String, db.ForeignKey('user.username'), nullable=False)
+    user_username = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     project_title = db.Column(db.String, db.ForeignKey('project.title'), nullable=False)
     vote_type = db.Column(db.String(10), nullable=False)
     comment = db.Column(db.Text, nullable=True)
@@ -53,7 +62,7 @@ class Budget(db.Model):
     essential = db.Column(db.Float, default=0)
     discretionary = db.Column(db.Float, default=0)
     total = db.Column(db.Float, nullable=False)
-    created_by = db.Column(db.String, db.ForeignKey('user.username'), nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
 class Expense(db.Model):
@@ -63,11 +72,10 @@ class Expense(db.Model):
     category = db.Column(db.String(20), nullable=False)
     project_title = db.Column(db.String, db.ForeignKey('project.title'), nullable=True)
     date = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    created_by = db.Column(db.String, db.ForeignKey('user.username'), nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
-@app.route("/")
-def index():
-    return "MAIN PAGE"
+
+
 
 # Login required decorator
 def login_required(f):
@@ -77,6 +85,93 @@ def login_required(f):
             return jsonify({'message': 'Please login first'}), 401
         return f(*args, **kwargs)
     return decorated_function
+
+@app.route('/chat/start', methods=['POST'])
+def start_chat():
+    chatbot = CBAA()
+    session_id = chatbot.create_session(user_id=1)  # Default user_id=1 for testing
+    return jsonify({'session_id': session_id})
+
+
+@app.route('/chat/message/<int:session_id>', methods=['POST'])
+def send_message(session_id):
+    chatbot = CBAA()
+    chatbot.current_session_id = session_id  # Attach to the current session
+
+    # Get user message
+    data = request.get_json(force=True)
+    user_message = data.get('message', '').strip()
+
+    if not user_message:
+        return jsonify({'error': 'Message cannot be empty'}), 400
+
+    # Check for termination keywords
+    if user_message.lower() in ['bye', 'exit', 'quit', 'end']:
+        chatbot.end_session()
+        return jsonify({'message': 'Chat ended successfully'})
+
+    # Ensure project basics have been collected
+    history = chatbot.get_chat_history(session_id)
+
+    if len(history) < 5:  # Assuming you have a context and 4 project basics
+        if len(history) == 0:  # Initial request for project description
+            prompt = "What would you like to do for your community? Tell me about your project idea:"
+        elif len(history) == 1:  # Ask for budget
+            prompt = "Do you have a specific amount of money you can use for this project?"
+        elif len(history) == 2:  # Ask for timeline
+            prompt = "When would you like to do this project? For example: next month, over the summer, etc."
+        elif len(history) == 3:  # Ask for helpers
+            prompt = "Who will help you with this project? For example: friends, neighbors, volunteers, etc."
+        else:
+            # All basics have been collected
+            project_info = {
+                'description': history[0].content,
+                'budget': history[1].content,
+                'timeline': history[2].content,
+                'helpers': history[3].content
+            }
+            # Get budgeting advice based on collected info
+            budget_advice = chatbot.get_budget_advice(project_info)
+            return jsonify({'response': budget_advice})
+
+        # Store the chatbot's prompt in chat history
+        chatbot.store_message(prompt, is_user=False)
+        return jsonify({'response': prompt})
+
+    # If basics are collected, process the user message
+    response = chatbot.get_response(user_message)
+    return jsonify({'response': response})
+
+
+@app.route('/chat/message2/<int:session_id>', methods=['POST'])
+def send_message2(session_id):
+    data = request.get_json(force=True)
+    chatbot = CBAA()
+    chatbot.current_session_id = session_id
+    response = chatbot.get_response(data.get('message', ''))
+    return jsonify({'response': response})
+
+@app.route('/chat/history/<int:session_id>', methods=['GET'])
+def get_history(session_id):
+    chatbot = CBAA()
+    messages = chatbot.get_chat_history(session_id)
+    return jsonify([{
+        'content': msg.content,
+        'is_user': msg.is_user,
+        'timestamp': str(msg.timestamp)
+    } for msg in messages])
+
+@app.route('/chat/end/<int:session_id>', methods=['POST']) 
+def end_chat(session_id):
+    chatbot = CBAA()
+    chatbot.current_session_id = session_id
+    chatbot.end_session()
+    return jsonify({'message': 'Cheers'})
+
+@app.route("/")
+def index():
+    return "MAIN PAGE"
+
 
 # Authentication routes
 @app.route('/auth/login', methods=['POST'])
@@ -509,6 +604,68 @@ def delete_budget(id):
         return jsonify({'message': 'Budget deleted successfully'})
     except Exception as e:
         return jsonify({'message': str(e)}), 400
+
+
+
+#Expense CRUD Operations
+@app.route('/expense', methods=['POST'])
+def create_expense():
+   data = request.get_json()
+   new_expense = Expense(
+       description=data['description'],
+       amount=float(data['amount']),
+       category=data['category'],
+       project_title=data.get('project_title'),
+       created_by=data['created_by']
+   )
+   db.session.add(new_expense)
+   db.session.commit()
+   return jsonify({'message': 'Expense created successfully'}), 201
+
+@app.route('/expense', methods=['GET'])
+def get_expenses():
+   expenses = Expense.query.all()
+   return jsonify([{
+       'id': e.id,
+       'description': e.description,
+       'amount': e.amount,
+       'category': e.category,
+       'project_title': e.project_title,
+       'created_by': e.created_by,
+       'date': e.date
+   } for e in expenses])
+
+
+@app.route('/expense/<int:id>', methods=['GET'])
+def get_expense(id):
+   expense = Expense.query.get(id)
+   return jsonify({
+       'id': expense.id,
+       'description': expense.description,
+       'amount': expense.amount,
+       'category': expense.category,
+       'project_title': expense.project_title,
+       'created_by': expense.created_by,
+       'date': expense.date.isoformat()
+   })
+
+@app.route('/expense/<int:id>', methods=['PUT'])
+def update_expense(id):
+   expense = Expense.query.get(id)
+   data = request.get_json()
+   if 'description' in data: expense.description = data['description']
+   if 'amount' in data: expense.amount = float(data['amount'])
+   if 'category' in data: expense.category = data['category']
+   if 'project_title' in data: expense.project_title = data['project_title']
+   db.session.commit()
+   return jsonify({'message': 'Expense updated successfully'})
+
+@app.route('/expense/<int:id>', methods=['DELETE'])
+def delete_expense(id):
+   expense = Expense.query.get(id)
+   db.session.delete(expense)
+   db.session.commit()
+   return jsonify({'message': 'Expense deleted successfully'})
 
 # Create database tables
 with app.app_context():
