@@ -2,7 +2,7 @@
     let { children } = $props();
 	import { page } from '$app/state';
 
-	import { DollarSign, Gamepad2, Settings, BookOpen, Blocks, Folder, HandHelping, Vote, HandCoins } from 'lucide-svelte';
+	import { DollarSign, BotMessageSquare, Settings, BookOpen, Blocks, Folder, HandHelping, Vote, HandCoins } from 'lucide-svelte';
 
 	const pages = [
 		{
@@ -48,9 +48,9 @@
 		},
 		{
 
-			url: "/game",
-			title: "Game",
-			icon: Gamepad2 
+			url: "/chatbot",
+			title: "Chat",
+			icon: BotMessageSquare 
 		},
 	];
 
