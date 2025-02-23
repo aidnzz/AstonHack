@@ -47,6 +47,7 @@
   }
   .projects {
     display: grid;
+    width: 100%;
     grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
   }
@@ -80,5 +81,13 @@
   .status-pending {
     background-color: orange;
   }
+
+  @media (max-width: 768px) {
+    .projects {
+      grid-template-columns: 1fr;
+    }
+  }
+
+
 
 </style>

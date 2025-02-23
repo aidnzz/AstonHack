@@ -42,12 +42,6 @@
 		},
 		{
 
-			url: "/settings",
-			title: "Community Settings",
-			icon: Settings
-		},
-		{
-
 			url: "/chatbot",
 			title: "Chat",
 			icon: BotMessageSquare 

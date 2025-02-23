@@ -18,14 +18,7 @@
                 <div class="budget-value">0</div>
             <div class="Available">Available</div>
                 <div class="budget-value">0</div>
-            <div class="budget-income">
-                <div class="budget-income-text">Income</div>
-                <div class="budget-income-value">+0.00</div>
-            </div>
-            <div class="budget-expenses">
-                <div class="budget-expenses-text">Expenses</div>
-                <div class="budget-expenses-value">-0.00</div>
-            </div>
+            
         </div>
         <div class="income"></div>
         <div class="expenses"></div>
@@ -37,7 +30,6 @@
             <button class="add-category">Add Category</button>
         </div>
         <ul class="categories">
-            <div class="box">
                 <li class="category">
                     <div class="category-name">Category 1</div>
                     <div class="category-amount">0.00</div>
